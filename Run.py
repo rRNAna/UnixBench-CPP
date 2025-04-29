@@ -1,0 +1,478 @@
+#!/usr/bin/env python3
+# Standard library import for file paths,
+# system commands, regular expressions, time processing, etc.
+import os
+import time
+import math
+import argparse
+import subprocess
+import statistics
+import re
+from pathlib import Path
+import shutil
+
+# Drawing Library
+import matplotlib.pyplot as plt
+import pandas as pd
+# -----------------------------------------------------------------------------
+# Configuration
+# -----------------------------------------------------------------------------
+VERSION     = "6.0.0"
+LANGUAGE    = "en_US.utf8"
+LONG_ITER   = 10
+SHORT_ITER  = 3
+C_COMPILER  = "clang"
+#C_COMPILER  = "gcc"
+
+# Set the working directory
+BINDIR      = Path("./pgms")
+RESULTDIR   = Path("./results")
+TMPDIR      = Path("./tmp")
+# 1) Clean and create TMPDIR
+if TMPDIR.exists():
+    shutil.rmtree(TMPDIR)
+TMPDIR.mkdir(parents=True)
+
+# 2) Copy the original testdir to TMPDIR/testdir
+shutil.copytree(Path.cwd() / "testdir", TMPDIR / "testdir")
+# ------------------------------------------------------------------------------
+# BenchmarkParser: Manage the output parser for each benchmark
+# ------------------------------------------------------------------------------
+class BenchmarkParser:
+    """
+    Used to register and schedule output parsers for each benchmark
+    """
+    def __init__(self):
+        self.parsers = {}
+
+    # Decorator for registering parsing functions
+    def register(self, name):
+        def wrapper(func):
+            self.parsers[name] = func
+            return func
+        return wrapper
+
+    # Call the corresponding parser according to the benchmark name
+    def parse(self, name, output):
+        if name in self.parsers:
+            return self.parsers[name](output)
+        return self.default_parse(output)
+
+    # Default parser: tries to extract COUNT| or MWIPS fields from the output
+    def default_parse(self, output):
+        # fallback: COUNT|... or MWIPS
+        results = []
+        for line in output.strip().split("\n"):
+            if line.startswith("COUNT|"):
+                parts = line.strip().split("|")
+                if len(parts) >= 2:
+                    try:
+                        results.append(float(parts[1]))
+                    except:
+                        continue
+        if results:
+            return {"COUNT0": max(results)}
+        m = re.search(r"^MWIPS\s+([0-9.]+)", output, re.MULTILINE)
+        if m:
+            return {"COUNT0": float(m.group(1))}
+        return {}
+
+# ------------------------------------------------------------------------------
+# Benchmark: Represents a benchmark test item
+# ------------------------------------------------------------------------------
+class Benchmark:
+    """
+    Represents a single benchmark test item
+    """
+    def __init__(self, name, msg, command, parser: BenchmarkParser, verbose=False):
+        self.name = name        # Test Name
+        self.msg = msg          # Display Name
+        self.command = command  # Command Line Parameters
+        self.parser = parser
+        self.samples = []       # Store the results of each run
+        self.verbose = verbose  # Test output verbosity
+
+    def run_once(self, concurrency=1, logdir=None, report_mode='html'):
+        processes = []
+        outputs = []
+        start = time.time()
+        # cwd = "testdir" if self.name in {"shell1", "shell8"} else None
+        cwd = str(TMPDIR / "testdir") if self.name in {"shell1", "shell8"} else None
+        # print(f"[DEBUG] Starting looper for {self.name} with concurrency={concurrency} ...")
+        for _ in range(concurrency):
+            if self.name.startswith("fstime") or self.name.startswith("fsbuffer") or self.name.startswith("fsdisk"):
+                thread_tmp_dir = TMPDIR / f"testdir/thread-{_}"
+                thread_tmp_dir.mkdir(parents=True, exist_ok=True)
+                cmd = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
+            else:
+                cmd = self.command[:]
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=cwd,
+                start_new_session=True
+            )
+            # print(f"[DEBUG] PID {proc.pid} started")
+            processes.append((proc, time.time()))
+        thread_times = []
+        outputs = []
+        for proc, start_time in processes:
+            stdout, stderr = proc.communicate()
+            end_time = time.time()
+            outputs.append(stdout + stderr)
+            thread_times.append(end_time - start_time)
+        avg_elapsed = sum(thread_times) / len(thread_times)
+
+        combined_output = "\n".join(outputs)  # Combine all outputs
+
+        if self.verbose:
+            print(f"\n-------------------------------------{self.name}-----------------")
+            print(combined_output.strip())
+            print(f"\n-------------------------------------END-----------------")
+        else:
+            print(f"[{self.name}] ✔️")
+
+        if logdir and report_mode in ("all", "log"):
+            (logdir / f"{self.name}.log").write_text(combined_output)
+        if logdir and report_mode in ("all",):
+            (logdir / f"{self.name}.txt").write_text(f"CMD: {' '.join(self.command)}\n\n{combined_output}")
+
+        # Modification: parse each subprocess output separately
+        for output in outputs:
+            result = self.parser.parse(self.name, output)
+            # Debug Print
+            # print(f"[DEBUG] Parsed result for {self.name}: {result}")
+            if result and "COUNT0" in result:
+                result["avg_elapsed"] = avg_elapsed
+                if self.name in {
+                    "dhry_reg", "whetstone-double", "pipe", "context1", "syscall", "sysexec"
+                }:
+                    result["COUNT1"] = 10
+                elif self.name in {
+                    "execl", "spawn", "fstime", "fstime-w", "fstime-r",
+                    "fsbuffer", "fsbuffer-w", "fsbuffer-r",
+                    "fsdisk", "fsdisk-w", "fsdisk-r"
+                }:
+                    result["COUNT1"] = 20
+                elif self.name in {"shell1", "shell8"}:
+                    result["COUNT1"] = 60
+                elif self.name.startswith("2d-") or self.name in {"ubgears"}:
+                    result["COUNT1"] = 3 if self.name.startswith("2d-") else 20
+                elif self.name in {"grep"}:
+                    result["COUNT1"] = 30
+                else:
+                    # Default fallback to avoid missing
+                    result["COUNT1"] = 10
+                self.samples.append(result)
+
+    # Repeat the Benchmark multiple times
+    def run(self, repeat=3, concurrency=1, logdir=None, report_mode='html'):
+        print(f"Running {self.msg} ...")
+        for _ in range(repeat):
+            self.run_once(concurrency, logdir, report_mode)
+
+    # Count the results (mixed strategy consistent with original UnixBench)
+    def summarize(self):
+        if not self.samples:
+            return 0.0, 0
+
+        # For syscall class test: total count0 / average count1 (multi-threaded)
+        if self.name in {"syscall", "pipe", "context1", "spawn", "execl"}:
+            total_count = sum(r["COUNT0"] for r in self.samples if "COUNT0" in r)
+            avg_count1 = statistics.mean(r["COUNT1"] for r in self.samples if "COUNT1" in r)
+            return total_count / avg_count1 if avg_count1 else 0.0, len(self.samples)
+
+        # Same as original UnixBench: dhry_reg, whetstone-double, etc. use sums
+        if self.name in {"dhry_reg", "whetstone-double", "shell1", "shell8", "shell16", "fstime-w", "fstime-r", "fstime"}:
+            values = [r["COUNT0"] for r in self.samples if "COUNT0" in r]
+            return sum(values), len(values)
+
+        # After discarding the lowest value in the first 1/3, calculate the geometric mean
+        values = [r["COUNT0"] for r in self.samples if "COUNT0" in r]
+        values.sort()
+        trimmed = values[len(values)//3:]  # Discard the lowest value in the first 1/3
+        if not trimmed:
+            return 0.0, 0
+        geo = math.exp(sum(math.log(v) for v in trimmed) / len(trimmed))
+        return geo, len(trimmed)
+
+    # Get the last score
+    def get_last_score(self):
+        if not self.samples:
+            return 0.0
+        return self.samples[-1]["COUNT0"]
+
+# ------------------------------------------------------------------------------
+# BenchmarkSuite: Manage all tests
+# ------------------------------------------------------------------------------
+class BenchmarkSuite:
+    """
+    Manage the registration, execution and scoring of all benchmarks
+    """
+    def __init__(self, verbose = False):
+        self.parser = BenchmarkParser()
+        self.benchmarks = {}
+        self.verbose = verbose
+
+        # The baseline value of each benchmark is used to calculate the Index Score
+        self.baselines = {
+            "dhry_reg":         116700.0,
+            "whetstone-double": 55.0,
+            "execl":            43.0,
+            "fstime-w":         3960.0,
+            "fstime-r":         1655.0,
+            "fstime":           5800.0,
+            "pipe":             12440.0,
+            "context1":         4000.0,
+            "spawn":            126.0,
+            "shell1":           42.4,
+            "shell8":           6.0,
+            "syscall":          15000.0
+        }
+
+    # Add a benchmark
+    def add(self, name, msg, command):
+        self.benchmarks[name] = Benchmark(name, msg, command, self.parser, verbose=self.verbose)
+
+    # Register the parser (externally called through the decorator)
+    def register_parser(self, name):
+        return self.parser.register(name)
+
+    # Execute all or specified benchmarks
+    def run(self, selected=None, repeat=None, concurrency=1, logdir=None, report_mode='html'):
+        selected = selected or list(self.baselines.keys())
+        final = []
+        self.index_values = []
+
+        # Define a list of benchmark names for "short_tests"
+        short_tests = {"execl", "spawn", "fstime", "fstime-w", "fstime-r",
+                       "fsbuffer", "fsbuffer-w", "fsbuffer-r",
+                       "fsdisk", "fsdisk-w", "fsdisk-r",
+                       "shell1", "shell8"}
+
+        unknown_benchmarks = False
+        for name in selected:
+            if name not in self.benchmarks:
+                print(f"❌ Unknown benchmark: {name}")
+                print("✅ Available benchmarks are:\n")
+                for bname, bench in self.benchmarks.items():
+                    print(f"  {bname:<20} {bench.msg}")
+                unknown_benchmarks = True
+                continue
+            bench = self.benchmarks[name]
+
+            # If the user does not specify repeat, the default rule is used.
+            if repeat is None:
+                # Automatically select the number of iterations based on the benchmark type
+                times = 3 if name in short_tests else 10
+            else:
+                times = repeat
+
+            bench.run(times, concurrency, logdir, report_mode)
+
+            score, count = bench.summarize()
+            baseline = self.baselines.get(name, 0.0)
+            index = score / baseline * 10 if baseline else 0.0
+            if index > 0:
+                self.index_values.append(index)
+            final.append((name, bench.msg, score, baseline, index, count))
+        if unknown_benchmarks:
+            return []
+        return final
+
+    def report(self, results):
+        print("\n--- Summary ---")
+        print(f"{'Benchmark':<42} {'Baseline':>10} {'Result':>14} {'Index':>12} {'Samples':>8}")
+        print("-" * 90)
+        for name, msg, score, baseline, index, count in results:
+            print(f"{msg:<42} {baseline:>10.2f} {score:>14.2f} {index:>12.2f} {count:>8d}")
+
+
+# ------------------------------------------------------------------------------
+# Generate benchmark results image
+# ------------------------------------------------------------------------------
+def generate_benchmark_plot(results, output_path):
+    data = {
+        "Benchmark": [msg for _, msg, _, _, _, _ in results],
+        "Result": [score for _, _, score, _, _, _ in results]
+    }
+    df = pd.DataFrame(data)
+    plt.figure(figsize=(12, 6))
+    bars = plt.barh(df["Benchmark"], df["Result"], edgecolor='black')
+    plt.xlabel("Performance Score")
+    plt.title("UnixBench Benchmark Results")
+    plt.grid(True, axis='x', linestyle='--', alpha=0.7)
+    for bar in bars:
+        width = bar.get_width()
+        plt.text(width * 1.01, bar.get_y() + bar.get_height()/2,
+                 f"{width:,.0f}", va='center')
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+
+# ------------------------------------------------------------------------------
+# Main program
+# ------------------------------------------------------------------------------
+def main():
+    # Print UnixBench Logo
+    with open("pgms/unixbench.logo") as f:
+        print(f.read())
+
+    # Parsing command line arguments
+    parser = argparse.ArgumentParser(
+        description="UnixBench Python 测试框架\n用法示例:\n  ./Run.py dhry_reg whetstone-double -i 5",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument("--list", action="store_true", help="列出所有可用的 benchmark 项")
+    parser.add_argument("-c", "--concurrency", type=int, help="指定测试并发数（可重复多次）例如 -c 1 -c 16")
+    parser.add_argument("tests", nargs="*", help="指定要运行的测试项")
+    parser.add_argument("-i", "--repeat", type=int, default=None, help="重复次数（不指定则自动按 benchmark 类型判断）")
+    parser.add_argument("-v", "--verbose", action="store_true", help="详细输出每个 benchmark 的执行信息")
+    parser.add_argument("--report", choices=["all", "html", "log"], default="html", help="指定输出报告类型: html（默认），log，仅文本或 all")
+
+    args = parser.parse_args()
+
+    os.makedirs(RESULTDIR, exist_ok=True) # Make sure the output directory exists
+
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    logdir = RESULTDIR / f"run-{timestamp}"
+    logdir.mkdir(parents=True, exist_ok=True)
+
+    suite = BenchmarkSuite(verbose=args.verbose)
+
+    # Add benchmark definition
+    ##########################
+    ## System Benchmarks    ##
+    ##########################
+    # Command composition and purpose of each test item
+    suite.add ("dhry_reg", "Dhrystone 2 using register variables", [str(BINDIR / "dhry_reg"), "10"])
+    suite.add("whetstone-double", "Double-Precision Whetstone", [str(BINDIR / "whetstone-double")])
+    suite.add ("syscall", "System Call Overhead", [str(BINDIR / "syscall"), "10"])
+    suite.add("context1", "Pipe-based Context Switching", [str(BINDIR / "context1"), "10"])
+    suite.add("pipe", "Pipe Throughput", [str(BINDIR / "pipe"), "10"])
+    suite.add("spawn", "Process Creation", [str(BINDIR / "spawn"), "30"])
+    suite.add("execl", "Execl Throughput", [str(BINDIR / "execl"), "30"])
+    suite.add("fstime-w", "File Write 1024 bufsize 2000 maxblocks",
+     [str(BINDIR / "fstime"), "-w", "-t", "30", "-d", str(TMPDIR), "-b", "1024", "-m", "2000"])
+    suite.add("fstime-r", "File Read 1024 bufsize 2000 maxblocks",
+     [str(BINDIR / "fstime"), "-r", "-t", "30", "-d", str(TMPDIR), "-b", "1024", "-m", "2000"])
+    suite.add("fstime", "File Copy 1024 bufsize 2000 maxblocks",
+     [str(BINDIR / "fstime"), "-c", "-t", "30", "-d", str(TMPDIR), "-b", "1024", "-m", "2000"])
+    suite.add("fsbuffer-w", "File Write 256 bufsize 500 maxblocks",
+     [str(BINDIR / "fstime"), "-w", "-t", "30", "-d", str(TMPDIR), "-b", "256", "-m", "500"])
+    suite.add("fsbuffer-r", "File Read 256 bufsize 500 maxblocks",
+     [str(BINDIR / "fstime"), "-r", "-t", "30", "-d", str(TMPDIR), "-b", "256", "-m", "500"])
+    suite.add("fsbuffer", "File Copy 256 bufsize 500 maxblocks",
+     [str(BINDIR / "fstime"), "-c", "-t", "30", "-d", str(TMPDIR), "-b", "256", "-m", "500"])
+    suite.add("fsdisk-w", "File Write 4096 bufsize 8000 maxblocks",
+     [str(BINDIR / "fstime"), "-w", "-t", "30", "-d", str(TMPDIR), "-b", "4096", "-m", "8000"])
+    suite.add("fsdisk-r", "File Read 4096 bufsize 8000 maxblocks",
+     [str(BINDIR / "fstime"), "-r", "-t", "30", "-d", str(TMPDIR), "-b", "4096", "-m", "8000"])
+    suite.add("fsdisk", "File Copy 4096 bufsize 8000 maxblocks",
+     [str(BINDIR / "fstime"), "-c", "-t", "30", "-d", str(TMPDIR), "-b", "4096", "-m", "8000"])
+    suite.add("shell1", "Shell Scripts (1 concurrent)", [os.path.abspath(BINDIR / "looper"), "60", os.path.abspath(BINDIR / "multi.sh"), "1"])
+    suite.add("shell8", "Shell Scripts (8 concurrent)", [os.path.abspath(BINDIR / "looper"), "60", os.path.abspath(BINDIR / "multi.sh"), "8"])
+    suite.add("shell16", "Shell Scripts (16 concurrent)", [str(BINDIR / "looper"), "60", str(BINDIR / "multi.sh"), "16"])
+    ##########################
+    ## Graphics Benchmarks  ##
+    ##########################
+    suite.add("2d-rects", "2D graphics: rectangles", [str(BINDIR / "gfx-x11"), "rects", "3", "2"])
+    suite.add("2d-lines", "2D graphics: lines", [str(BINDIR / "gfx-x11"), "lines", "3", "2"])
+    suite.add("2d-circle", "2D graphics: circles", [str(BINDIR / "gfx-x11"), "circle", "3", "2"])
+    suite.add("2d-ellipse", "2D graphics: ellipses", [str(BINDIR / "gfx-x11"), "ellipse", "3", "2"])
+    suite.add("2d-shapes", "2D graphics: polygons", [str(BINDIR / "gfx-x11"), "shapes", "3", "2"])
+    suite.add("2d-aashapes", "2D graphics: aa polygons", [str(BINDIR / "gfx-x11"), "aashapes", "3", "2"])
+    suite.add("2d-polys", "2D graphics: complex polygons", [str(BINDIR / "gfx-x11"), "polys", "3", "2"])
+    suite.add("2d-text", "2D graphics: text", [str(BINDIR / "gfx-x11"), "text", "3", "2"])
+    suite.add("2d-blit", "2D graphics: images and blits", [str(BINDIR / "gfx-x11"), "blit", "3", "2"])
+    suite.add("2d-window", "2D graphics: windows", [str(BINDIR / "gfx-x11"), "window", "3", "2"])
+    suite.add("ubgears", "3D graphics: gears", [str(BINDIR / "ubgears"), "-time", "20", "-v"])
+    ##########################
+    ## Non-Index Benchmarks ##
+    ##########################
+    suite.add("C", f"C Compiler Throughput ({C_COMPILER})", [str(BINDIR / "looper"), "60", C_COMPILER, "cctest.c"])
+    suite.add("arithoh", "Arithoh", [str(BINDIR / "arithoh"), "10"])
+    suite.add("short", "Arithmetic Test (short)", [str(BINDIR / "short"), "10"])
+    suite.add("int", "Arithmetic Test (int)", [str(BINDIR / "int"), "10"])
+    suite.add ("long", "Arithmetic Test (long)", [str(BINDIR / "long"), "10"])
+    suite.add("float", "Arithmetic Test (float)", [str(BINDIR / "float"), "10"])
+    suite.add("double", "Arithmetic Test (double)", [str(BINDIR / "double"), "10"])
+    suite.add("dc", "Dc: sqrt(2) to 99 decimal places", [str(BINDIR / "looper"), "30", "dc"])
+    suite.add("hanoi", "Recursion Test -- Tower of Hanoi", [str(BINDIR / "hanoi"), "20"])
+    suite.add("grep", "Grep a large file", [str(BINDIR / "looper"), "30", "grep", "-c", "gimp", "large.txt"])
+    suite.add("sysexec", "Exec System Call Overhead", [str(BINDIR / "syscall"), "10", "exec"])
+
+    # Register a specific benchmark output parser
+    @suite.register_parser("dhry_reg")
+    def parse_dhry_reg(output):
+        for line in output.splitlines():
+            if line.startswith("COUNT|"):
+                parts = line.split("|")
+                return {"COUNT0": float(parts[1])}
+        return {}
+
+    @suite.register_parser("whetstone-double")
+    def parse_whets(output):
+        m = re.search(r"^MWIPS\s+([0-9.]+)", output, re.MULTILINE)
+        if m:
+            return {"COUNT0": float(m.group(1))}
+        return {}
+
+    # List all benchmark logic
+    if args.list:
+        print("可用的 benchmark 项如下：\n")
+        for name, bench in suite.benchmarks.items():
+            print(f"{name:<20} {bench.msg}")
+        return
+
+    # Concurrent List
+    copies = [args.concurrency] if args.concurrency else []
+
+    # Set the number of concurrent connections
+    if not copies:
+        # If -c is not specified, the default is to perform 1 and n core thread tests.
+        copies = [1]
+        cpu_count = os.cpu_count()
+        if cpu_count and cpu_count > 1:
+            copies.append(cpu_count)
+
+    # Executing the test
+    for c in copies:
+        print(f"\n🧪 Run with {c} thread(s)")
+        results = suite.run(args.tests, repeat=args.repeat if args.repeat else None, concurrency=c, logdir=logdir, report_mode=args.report)
+        if not results:
+            continue  # If it is an invalid benchmark, skip subsequent processing
+        suite.report(results)  # Output
+
+    # Generate Image Report
+    if args.report in ("all", "html"):
+        img_path = logdir / "results.png"
+        generate_benchmark_plot(results, img_path)
+
+
+    # Calculate the geometric mean
+    from statistics import geometric_mean
+    valid = [i for _, _, _, _, i, _ in results if i > 0]
+    if valid:
+        print(f"\nSystem Benchmarks Index Score: {geometric_mean(valid):.1f}")
+
+    if args.report in ("all", "html") and results:
+        html_path = logdir / "results.html"
+        with open(html_path, "w") as f:
+            f.write("<html><head><title>UnixBench Report</title></head><body>")
+            f.write("<h2>UnixBench Results Summary</h2>")
+            f.write("<table border='1'><tr><th>Benchmark</th><th>Baseline</th><th>Result</th><th>Index</th><th>Samples</th></tr>")
+            for name, msg, score, baseline, index, count in results:
+                f.write(f"<tr><td>{msg}</td><td>{baseline:.1f}</td><td>{score:.1f}</td><td>{index:.1f}</td><td>{count}</td></tr>")
+            f.write("</table>")
+            # if args.report in ("all", "html"):
+            #     f.write(f"<h3>Performance Chart</h3><img src='results.png' width='800'>")
+            f.write("</body></html>")
+        print(f"\nHTML 报告已生成: {html_path}")
+
+
+if __name__ == "__main__":
+    main()
