@@ -24,7 +24,6 @@
 
 SHELL = /bin/sh
 
-
 # GRAPHICS TESTS: Uncomment the definition of "GRAPHIC_TESTS" to enable
 # the building of the graphics benchmarks.  This will require the
 # X11 libraries on your system.
