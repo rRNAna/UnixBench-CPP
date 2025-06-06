@@ -36,7 +36,8 @@ SHELL = /bin/sh
 GL_LIBS = -lGL -lXext -lX11
 
 # Automatically select clang++ if available, otherwise fall back to g++
-CXX := $(shell if command -v clang++ >/dev/null 2>&1; then echo clang++; else echo g++; fi)
+# CXX := $(shell if command -v clang++ >/dev/null 2>&1; then echo clang++; else echo g++; fi)
+CXX = clang++
 
 # OPTIMISATION SETTINGS:
 #
