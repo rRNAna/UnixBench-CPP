@@ -8,6 +8,7 @@ import argparse
 import subprocess
 import statistics
 import re
+import concurrent.futures
 from pathlib import Path
 import shutil
 
@@ -114,11 +115,17 @@ class Benchmark:
 
         thread_times = []
         outputs = []
-        for proc, start_time in processes:
-            stdout, stderr = proc.communicate()
-            end_time = time.time()
-            outputs.append(stdout + stderr)
-            thread_times.append(end_time - start_time)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
+            futures = []
+            for proc, start_time in processes:
+                futures.append(executor.submit(proc.communicate))
+
+            for i, future in enumerate(futures):
+                stdout, stderr = future.result()
+                end_time = time.time()
+                outputs.append(stdout + stderr)
+                thread_times.append(end_time - processes[i][1])
+
         avg_elapsed = sum(thread_times) / len(thread_times)
 
         combined_output = "\n".join(outputs)  # Combine all outputs
