@@ -54,9 +54,9 @@ static vector<SPDP> results(9);
 
 // Define a function that returns the number of seconds since a fixed point, of type double
 double dtime() {
-    static auto start = chrono::high_resolution_clock::now();
-    auto now = chrono::high_resolution_clock::now();
-    return chrono::duration<double>(now - start).count();
+    // static auto start = chrono::high_resolution_clock::now();
+    // auto now = chrono::high_resolution_clock::now();
+    // return chrono::duration<double>(now - start).count();
 
     auto now = std::chrono::high_resolution_clock::now();
     static thread_local auto start = now;  // 每个线程/进程都有独立起点
