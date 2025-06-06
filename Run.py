@@ -99,13 +99,19 @@ class Benchmark:
         # cwd = "testdir" if self.name in {"shell1", "shell8"} else None
         cwd = str(TMPDIR / "testdir") if self.name in {"shell1", "shell8"} else None
         # print(f"[DEBUG] Starting looper for {self.name} with concurrency={concurrency} ...")
-        for _ in range(concurrency):
+
+        for i in range(concurrency):
             if self.name.startswith("fstime") or self.name.startswith("fsbuffer") or self.name.startswith("fsdisk"):
-                thread_tmp_dir = TMPDIR / f"testdir/thread-{_}"
+                thread_tmp_dir = TMPDIR / f"testdir/thread-{i}"
                 thread_tmp_dir.mkdir(parents=True, exist_ok=True)
-                cmd = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
+            cmd = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
             else:
                 cmd = self.command[:]
+
+            # 增加 taskset 绑定逻辑：将子进程固定在第 i 个 CPU 核心上
+            core_id = i % os.cpu_count()  # 防止超出核心数量
+            cmd = ["taskset", "-c", str(core_id)] + cmd
+
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -114,8 +120,8 @@ class Benchmark:
                 cwd=cwd,
                 start_new_session=True
             )
-            # print(f"[DEBUG] PID {proc.pid} started")
             processes.append((proc, time.time()))
+
         thread_times = []
         outputs = []
         for proc, start_time in processes:
