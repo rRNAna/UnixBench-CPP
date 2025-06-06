@@ -93,78 +93,78 @@ class Benchmark:
         self.samples = []       # Store the results of each run
         self.verbose = verbose  # Test output verbosity
 
-def run_once(self, concurrency=1, logdir=None, report_mode='html'):
-    processes = []
-    outputs = []
-    start = time.time()
-    cwd = str(TMPDIR / "testdir") if self.name in {"shell1", "shell8"} else None
+    def run_once(self, concurrency=1, logdir=None, report_mode='html'):
+        processes = []
+        outputs = []
+        start = time.time()
+        cwd = str(TMPDIR / "testdir") if self.name in {"shell1", "shell8"} else None
 
-    # 正确地收集所有启动的子进程
-    for thread_id in range(concurrency):
-        cpu_id = thread_id % os.cpu_count()
-        cmd = ["taskset", "-c", str(cpu_id)] + self.command
+        # 正确地收集所有启动的子进程
+        for thread_id in range(concurrency):
+            cpu_id = thread_id % os.cpu_count()
+            cmd = ["taskset", "-c", str(cpu_id)] + self.command
 
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            cwd=cwd,
-            start_new_session=True
-        )
-        processes.append((proc, time.time()))  # ← 这一行必须在循环内部
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=cwd,
+                start_new_session=True
+            )
+            processes.append((proc, time.time()))  # ← 这一行必须在循环内部
 
-    thread_times = []
-    outputs = []
+        thread_times = []
+        outputs = []
 
-    # 并发等待所有子进程完成
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
-        futures = [executor.submit(proc.communicate) for proc, _ in processes]
+        # 并发等待所有子进程完成
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
+            futures = [executor.submit(proc.communicate) for proc, _ in processes]
 
-        for i, future in enumerate(futures):
-            stdout, stderr = future.result()
-            end_time = time.time()
-            outputs.append(stdout + stderr)
-            thread_times.append(end_time - processes[i][1])
+            for i, future in enumerate(futures):
+                stdout, stderr = future.result()
+                end_time = time.time()
+                outputs.append(stdout + stderr)
+                thread_times.append(end_time - processes[i][1])
 
-    avg_elapsed = sum(thread_times) / len(thread_times)
-    combined_output = "\n".join(outputs)
+        avg_elapsed = sum(thread_times) / len(thread_times)
+        combined_output = "\n".join(outputs)
 
-    if self.verbose:
-        print(f"\n-------------------------------------{self.name}-----------------")
-        print(combined_output.strip())
-        print(f"\n-------------------------------------END-----------------")
-    else:
-        print(f"[{self.name}] ✔️")
+        if self.verbose:
+            print(f"\n-------------------------------------{self.name}-----------------")
+            print(combined_output.strip())
+            print(f"\n-------------------------------------END-----------------")
+        else:
+            print(f"[{self.name}] ✔️")
 
-    if logdir and report_mode in ("all", "log"):
-        (logdir / f"{self.name}.log").write_text(combined_output)
-    if logdir and report_mode in ("all",):
-        (logdir / f"{self.name}.txt").write_text(f"CMD: {' '.join(self.command)}\n\n{combined_output}")
+        if logdir and report_mode in ("all", "log"):
+            (logdir / f"{self.name}.log").write_text(combined_output)
+        if logdir and report_mode in ("all",):
+            (logdir / f"{self.name}.txt").write_text(f"CMD: {' '.join(self.command)}\n\n{combined_output}")
 
-    for output in outputs:
-        result = self.parser.parse(self.name, output)
-        if result and "COUNT0" in result:
-            result["avg_elapsed"] = avg_elapsed
-            if self.name in {
-                "dhry_reg", "whetstone-double", "pipe", "context1", "syscall", "sysexec"
-            }:
-                result["COUNT1"] = 10
-            elif self.name in {
-                "execl", "spawn", "fstime", "fstime-w", "fstime-r",
-                "fsbuffer", "fsbuffer-w", "fsbuffer-r",
-                "fsdisk", "fsdisk-w", "fsdisk-r"
-            }:
-                result["COUNT1"] = 20
-            elif self.name in {"shell1", "shell8"}:
-                result["COUNT1"] = 60
-            elif self.name.startswith("2d-") or self.name in {"ubgears"}:
-                result["COUNT1"] = 3 if self.name.startswith("2d-") else 20
-            elif self.name in {"grep"}:
-                result["COUNT1"] = 30
-            else:
-                result["COUNT1"] = 10
-            self.samples.append(result)
+        for output in outputs:
+            result = self.parser.parse(self.name, output)
+            if result and "COUNT0" in result:
+                result["avg_elapsed"] = avg_elapsed
+                if self.name in {
+                    "dhry_reg", "whetstone-double", "pipe", "context1", "syscall", "sysexec"
+                }:
+                    result["COUNT1"] = 10
+                elif self.name in {
+                    "execl", "spawn", "fstime", "fstime-w", "fstime-r",
+                    "fsbuffer", "fsbuffer-w", "fsbuffer-r",
+                    "fsdisk", "fsdisk-w", "fsdisk-r"
+                }:
+                    result["COUNT1"] = 20
+                elif self.name in {"shell1", "shell8"}:
+                    result["COUNT1"] = 60
+                elif self.name.startswith("2d-") or self.name in {"ubgears"}:
+                    result["COUNT1"] = 3 if self.name.startswith("2d-") else 20
+                elif self.name in {"grep"}:
+                    result["COUNT1"] = 30
+                else:
+                    result["COUNT1"] = 10
+                self.samples.append(result)
 
     # Repeat the Benchmark multiple times
     def run(self, repeat=3, concurrency=1, logdir=None, report_mode='html'):
