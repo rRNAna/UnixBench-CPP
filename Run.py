@@ -99,28 +99,17 @@ class Benchmark:
         cwd = str(TMPDIR / "testdir") if self.name in {"shell1", "shell8"} else None
 
         for thread_id in range(concurrency):
-            if self.name.startswith("fstime") or self.name.startswith("fsbuffer") or self.name.startswith("fsdisk"):
-                thread_tmp_dir = TMPDIR / f"testdir/thread-{thread_id}"
-                thread_tmp_dir.mkdir(parents=True, exist_ok=True)
-                cmd = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
-            else:
-                cmd = self.command[:]
+            cpu_id = thread_id % os.cpu_count()
+            cmd = ["taskset", "-c", str(cpu_id)] + self.command
 
-        cpu_id = thread_id  # 简单从0开始分配核心
-        print(f"[DEBUG] Binding thread {thread_id} to CPU {cpu_id}: {cmd}")
-
-        def set_affinity():
-            os.sched_setaffinity(0, {cpu_id})
-
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            cwd=cwd,
-            start_new_session=True,
-            preexec_fn=set_affinity  # 绑定核心
-        )
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=cwd,
+                start_new_session=True
+            )
         processes.append((proc, time.time()))
 
         thread_times = []
