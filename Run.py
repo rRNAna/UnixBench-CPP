@@ -96,56 +96,32 @@ class Benchmark:
         processes = []
         outputs = []
         start = time.time()
-        # cwd = "testdir" if self.name in {"shell1", "shell8"} else None
         cwd = str(TMPDIR / "testdir") if self.name in {"shell1", "shell8"} else None
-        # print(f"[DEBUG] Starting looper for {self.name} with concurrency={concurrency} ...")
 
-        # for i in range(concurrency):
-        #     if self.name.startswith("fstime") or self.name.startswith("fsbuffer") or self.name.startswith("fsdisk"):
-        #         thread_tmp_dir = TMPDIR / f"testdir/thread-{i}"
-        #         thread_tmp_dir.mkdir(parents=True, exist_ok=True)
-        #         cmd = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
-        #     else:
-        #         cmd = self.command[:]
-        #
-        #     # 增加 taskset 绑定逻辑：将子进程固定在第 i 个 CPU 核心上
-        #     core_id = i % os.cpu_count()  # 防止超出核心数量
-        #     cmd_str = f"taskset -c {core_id} " + " ".join(cmd)
-        #
-        #     proc = subprocess.Popen(
-        #         cmd_str,
-        #         stdout=subprocess.PIPE,
-        #         stderr=subprocess.PIPE,
-        #         text=True,
-        #         cwd=cwd,
-        #         shell=True,
-        #         start_new_session=True
-        #     )
-        #     processes.append((proc, time.time()))
-
-
-        for i in range(concurrency):
+        for thread_id in range(concurrency):
             if self.name.startswith("fstime") or self.name.startswith("fsbuffer") or self.name.startswith("fsdisk"):
-                thread_tmp_dir = TMPDIR / f"testdir/thread-{i}"
+                thread_tmp_dir = TMPDIR / f"testdir/thread-{thread_id}"
                 thread_tmp_dir.mkdir(parents=True, exist_ok=True)
-                args = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
+                cmd = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
             else:
-                args = self.command[:]
+                cmd = self.command[:]
 
-            # 这里拼接命令字符串，指定 CPU core ID
-            cpu_id = i % os.cpu_count()
-            cmd_str = f"taskset -c {cpu_id} " + " ".join(args)
+        cpu_id = thread_id  # 简单从0开始分配核心
+        print(f"[DEBUG] Binding thread {thread_id} to CPU {cpu_id}: {cmd}")
 
-            proc = subprocess.Popen(
-                cmd_str,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                shell=True,     # 必须为 True，才能让 taskset 被解析
-                cwd=cwd,
-                start_new_session=True
-            )
-            processes.append((proc, time.time()))
+        def set_affinity():
+            os.sched_setaffinity(0, {cpu_id})
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=cwd,
+            start_new_session=True,
+            preexec_fn=set_affinity  # 绑定核心
+        )
+        processes.append((proc, time.time()))
 
         thread_times = []
         outputs = []
