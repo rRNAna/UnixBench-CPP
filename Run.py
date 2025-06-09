@@ -180,16 +180,14 @@ class Benchmark:
 
     # Repeat the Benchmark multiple times
     def run(self, times, concurrency, logdir, report_mode):
-        status_line = f"[{self.name}]"
+        print(f"[{self.name:<10}] ", end="", flush=True)
         for i in range(times):
             try:
                 self.run_once(concurrency, logdir, report_mode)
-                status_line += f" ✔({i + 1}/{times})"
+                print(f"✔({i + 1}/{times}) ", end="", flush=True)
             except Exception as e:
-                status_line += f" ✘({i + 1}/{times})"
-                if self.verbose:
-                    print(f"[ERROR] {self.name} round {i + 1} failed: {e}")
-        print(status_line)
+                print(f"✘({i + 1}/{times}) ", end="", flush=True)
+        print("")  # 换行，完成一项 benchmark 的输出
 
     # Count the results (mixed strategy consistent with original UnixBench)
     def summarize(self):
