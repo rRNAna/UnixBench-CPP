@@ -102,7 +102,7 @@ class Benchmark:
         # 正确地收集所有启动的子进程
         for thread_id in range(concurrency):
             cpu_id = thread_id % os.cpu_count()
-            cmd = ["taskset", "-c", str(cpu_id)] + self.command
+            cmd = self.command[:]
 
             proc = subprocess.Popen(
                 cmd,
@@ -112,7 +112,13 @@ class Benchmark:
                 cwd=cwd,
                 start_new_session=True
             )
-            processes.append((proc, time.time()))  # ← 这一行必须在循环内部
+
+            try:
+                p = psutil.Process(proc.pid)
+                cpu_id = thread_id % os.cpu_count()
+                p.cpu_affinity([cpu_id])
+            except Exception as e:
+                print(f"[WARN] Failed to set affinity: {e}")
 
         thread_times = []
         outputs = []
