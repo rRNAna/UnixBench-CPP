@@ -292,24 +292,24 @@ class BenchmarkSuite:
 # ------------------------------------------------------------------------------
 # Generate benchmark results image
 # ------------------------------------------------------------------------------
-def generate_benchmark_plot(results, output_path):
-    data = {
-        "Benchmark": [msg for _, msg, _, _, _, _ in results],
-        "Result": [score for _, _, score, _, _, _ in results]
-    }
-    df = pd.DataFrame(data)
-    plt.figure(figsize=(12, 6))
-    bars = plt.barh(df["Benchmark"], df["Result"], edgecolor='black')
-    plt.xlabel("Performance Score")
-    plt.title("UnixBench Benchmark Results")
-    plt.grid(True, axis='x', linestyle='--', alpha=0.7)
-    for bar in bars:
-        width = bar.get_width()
-        plt.text(width * 1.01, bar.get_y() + bar.get_height()/2,
-                 f"{width:,.0f}", va='center')
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
+# def generate_benchmark_plot(results, output_path):
+#     data = {
+#         "Benchmark": [msg for _, msg, _, _, _, _ in results],
+#         "Result": [score for _, _, score, _, _, _ in results]
+#     }
+#     df = pd.DataFrame(data)
+#     plt.figure(figsize=(12, 6))
+#     bars = plt.barh(df["Benchmark"], df["Result"], edgecolor='black')
+#     plt.xlabel("Performance Score")
+#     plt.title("UnixBench Benchmark Results")
+#     plt.grid(True, axis='x', linestyle='--', alpha=0.7)
+#     for bar in bars:
+#         width = bar.get_width()
+#         plt.text(width * 1.01, bar.get_y() + bar.get_height()/2,
+#                  f"{width:,.0f}", va='center')
+#     plt.tight_layout()
+#     plt.savefig(output_path)
+#     plt.close()
 
 # ------------------------------------------------------------------------------
 # Main program
@@ -447,9 +447,9 @@ def main():
         suite.report(results)  # Output
 
     # Generate Image Report
-    if args.report in ("all", "html"):
-        img_path = logdir / "results.png"
-        generate_benchmark_plot(results, img_path)
+    # if args.report in ("all", "html"):
+    #     img_path = logdir / "results.png"
+    #     generate_benchmark_plot(results, img_path)
 
 
     # Calculate the geometric mean
