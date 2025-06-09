@@ -95,18 +95,23 @@ class Benchmark:
         self.verbose = verbose  # Test output verbosity
 
     def run_once(self, concurrency=1, logdir=None, report_mode='html'):
-
         processes = []
         outputs = []
         start = time.time()
         cwd = str(TMPDIR / "testdir") if self.name in {"shell1", "shell8"} else None
 
-         # 这些 benchmark 不绑核
+        # 不绑核的 benchmark
         no_affinity_list = {"dhry_reg", "fstime-w", "fstime-r", "fstime"}
         bind_affinity = self.name not in no_affinity_list
 
         for thread_id in range(concurrency):
-            cmd = self.command[:]
+            # 对 fstime/fsbuffer/fsdisk 系列使用 thread-specific TMPDIR
+            if self.name.startswith("fstime") or self.name.startswith("fsbuffer") or self.name.startswith("fsdisk"):
+                thread_tmp_dir = TMPDIR / f"testdir/thread-{thread_id}"
+                thread_tmp_dir.mkdir(parents=True, exist_ok=True)
+                cmd = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
+            else:
+                cmd = self.command[:]
 
             proc = subprocess.Popen(
                 cmd,
@@ -123,17 +128,13 @@ class Benchmark:
                     cpu_id = thread_id % os.cpu_count()
                     p.cpu_affinity([cpu_id])
                 except Exception as e:
-                    print(f"[WARN] Failed to set affinity for {self.name}, pid={cpu_id}: {e}")
+                    print(f"[WARN] Failed to set affinity for {self.name}, pid={proc.pid}: {e}")
 
             processes.append((proc, time.time()))
 
         thread_times = []
-        outputs = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
-            futures = []
-            for proc, start_time in processes:
-                futures.append(executor.submit(proc.communicate))
-
+            futures = [executor.submit(proc.communicate) for proc, _ in processes]
             for i, future in enumerate(futures):
                 stdout, stderr = future.result()
                 end_time = time.time()
@@ -153,7 +154,7 @@ class Benchmark:
         if logdir and report_mode in ("all",):
             (logdir / f"{self.name}.txt").write_text(f"CMD: {' '.join(self.command)}\n\n{combined_output}")
 
-        # 解析每个子进程的输出
+        # 解析每个子进程输出
         for output in outputs:
             result = self.parser.parse(self.name, output)
             if result and "COUNT0" in result:
@@ -175,7 +176,7 @@ class Benchmark:
                 elif self.name in {"grep"}:
                     result["COUNT1"] = 30
                 else:
-                    result["COUNT1"] = 10  # 默认 fallback
+                    result["COUNT1"] = 10  # fallback
                 self.samples.append(result)
 
     # Repeat the Benchmark multiple times
