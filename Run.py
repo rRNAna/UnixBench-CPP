@@ -11,6 +11,7 @@ import re
 import concurrent.futures
 from pathlib import Path
 import shutil
+import psutil
 
 # Drawing Library
 # import matplotlib.pyplot as plt
@@ -119,6 +120,8 @@ class Benchmark:
                 p.cpu_affinity([cpu_id])
             except Exception as e:
                 print(f"[WARN] Failed to set affinity: {e}")
+
+            processes.append((proc, time.time()))
 
         thread_times = []
         outputs = []
