@@ -95,14 +95,17 @@ class Benchmark:
         self.verbose = verbose  # Test output verbosity
 
     def run_once(self, concurrency=1, logdir=None, report_mode='html'):
+
         processes = []
         outputs = []
         start = time.time()
         cwd = str(TMPDIR / "testdir") if self.name in {"shell1", "shell8"} else None
 
-        # 正确地收集所有启动的子进程
+         # 这些 benchmark 不绑核
+        no_affinity_list = {"dhry_reg", "fstime-w", "fstime-r", "fstime"}
+        bind_affinity = self.name not in no_affinity_list
+
         for thread_id in range(concurrency):
-            cpu_id = thread_id % os.cpu_count()
             cmd = self.command[:]
 
             proc = subprocess.Popen(
@@ -113,22 +116,24 @@ class Benchmark:
                 cwd=cwd,
                 start_new_session=True
             )
-
-            try:
-                p = psutil.Process(proc.pid)
-                cpu_id = thread_id % os.cpu_count()
-                p.cpu_affinity([cpu_id])
-            except Exception as e:
-                print(f"[WARN] Failed to set affinity: {e}")
+            if bind_affinity:
+                try:
+                    p = psutil.Process(proc.pid)
+                    cpu_id = thread_id % os.cpu_count()
+                    p.cpu_affinity([cpu_id])
+                except Exception as e:
+                    print(f"[WARN] Failed to set affinity for {self.name}, pid={cpu_id}: {e}")
+            else:
+                print(f"[DEBUG] No affinity: benchmark={self.name}, pid={proc.pid}")
 
             processes.append((proc, time.time()))
 
         thread_times = []
         outputs = []
-
-        # 并发等待所有子进程完成
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
-            futures = [executor.submit(proc.communicate) for proc, _ in processes]
+            futures = []
+            for proc, start_time in processes:
+                futures.append(executor.submit(proc.communicate))
 
             for i, future in enumerate(futures):
                 stdout, stderr = future.result()
