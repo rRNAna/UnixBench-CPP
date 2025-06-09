@@ -116,6 +116,7 @@ class Benchmark:
                 cwd=cwd,
                 start_new_session=True
             )
+
             if bind_affinity:
                 try:
                     p = psutil.Process(proc.pid)
