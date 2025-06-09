@@ -124,8 +124,6 @@ class Benchmark:
                     p.cpu_affinity([cpu_id])
                 except Exception as e:
                     print(f"[WARN] Failed to set affinity for {self.name}, pid={cpu_id}: {e}")
-            else:
-                print(f"[DEBUG] No affinity: benchmark={self.name}, pid={proc.pid}")
 
             processes.append((proc, time.time()))
 
@@ -149,14 +147,13 @@ class Benchmark:
             print(f"\n-------------------------------------{self.name}-----------------")
             print(combined_output.strip())
             print(f"\n-------------------------------------END-----------------")
-        else:
-            print(f"[{self.name}] ✔️")
 
         if logdir and report_mode in ("all", "log"):
             (logdir / f"{self.name}.log").write_text(combined_output)
         if logdir and report_mode in ("all",):
             (logdir / f"{self.name}.txt").write_text(f"CMD: {' '.join(self.command)}\n\n{combined_output}")
 
+        # 解析每个子进程的输出
         for output in outputs:
             result = self.parser.parse(self.name, output)
             if result and "COUNT0" in result:
@@ -178,14 +175,21 @@ class Benchmark:
                 elif self.name in {"grep"}:
                     result["COUNT1"] = 30
                 else:
-                    result["COUNT1"] = 10
+                    result["COUNT1"] = 10  # 默认 fallback
                 self.samples.append(result)
 
     # Repeat the Benchmark multiple times
-    def run(self, repeat=3, concurrency=1, logdir=None, report_mode='html'):
-        print(f"Running {self.msg} ...")
-        for _ in range(repeat):
-            self.run_once(concurrency, logdir, report_mode)
+    def run(self, times, concurrency, logdir, report_mode):
+        status_line = f"[{self.name}]"
+        for i in range(times):
+            try:
+                self.run_once(concurrency, logdir, report_mode)
+                status_line += f" ✔({i + 1}/{times})"
+            except Exception as e:
+                status_line += f" ✘({i + 1}/{times})"
+                if self.verbose:
+                    print(f"[ERROR] {self.name} round {i + 1} failed: {e}")
+        print(status_line)
 
     # Count the results (mixed strategy consistent with original UnixBench)
     def summarize(self):
