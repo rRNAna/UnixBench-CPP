@@ -2,8 +2,8 @@
  * @file        big.cpp
  * @brief       C++ refactored UnixBench arith test module
  * @author      rRNA
- * @version     3.4.0
- * @date        04-28-2025
+ * @version     3.5.0
+ * @date        6-10-2025
  *
  * @details
  * This file is a C++ rewrite of big.c from the original UnixBench project.
@@ -31,30 +31,6 @@ int numUsers = 0;
 int firstUser = 0;
 int exitStatus = 0;
 int sigpipe = 0;
-std::vector<Work> works;
-std::vector<Child> children;
-
-
-struct Work {
-    std::string cmd;
-    std::vector<std::string> args;
-    std::string input;
-    std::string outputFile;
-};
-
-struct Child {
-    int xmit = 0;
-    std::string inputBuffer;
-    int inputPos = 0;
-    int fd = 0;
-    int pid = 0;
-    int firstJob = 0;
-    int currentJob = 0;
-    const char* line = nullptr; // New member to track current line start
-};
-
-std::vector<Work> works;
-std::vector<Child> children;
 
 int main(int argc, char* argv[]) {
     std::string prog = argv[0];
