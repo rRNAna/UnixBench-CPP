@@ -21,6 +21,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(unixbench-benchmarks CXX)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/pgms")
+
 # Set C++ standard
 find_program(CLANGPP clang++)
 find_program(GPP g++)
@@ -52,9 +54,6 @@ else()
 endif()
 
 add_compile_options(${EXTRA_OPTS} -DTIME -Wall -pedantic)
-
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/pgms")
 
 # Source directory
 set(SRCDIR ${CMAKE_SOURCE_DIR}/src)
