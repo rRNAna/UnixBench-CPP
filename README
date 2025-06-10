@@ -1,3 +1,28 @@
+Version 6.1.0 -- 2025-06-10
+
+================================================================================
+This release includes a full modernization of the original UnixBench framework.
+
+Major changes in v6.1.0:
+* Build with CMake.
+* Modified the test script, added thread CPU affinity binding to the CPU load
+  benchmark, and improved the overall performance by 7.3% (tested on AMD EPYC
+  9175F).
+
+How to use:
+1. Build the test binaries using `make`.
+2. Run `python3 Run.py` to begin benchmarking.
+
+Legacy tests and tools:
+- Original C sources are preserved in `src/legacy_c/` for comparison.
+- All new code resides in `src/` (C++) and top-level Python scripts (e.g. `Run.py`).
+
+For details on custom test setup or integration, see `USAGE` and the script docstrings.
+
+Maintainer: [rRNA]
+
+====================History=====================================
+
 Version 6.0.0 -- 2025-04-29
 
 ================================================================================
@@ -23,7 +48,6 @@ For details on custom test setup or integration, see `USAGE` and the script docs
 
 Maintainer: [rRNA]
 
-====================History=====================================
 
 Version 5.1.3 -- 2011-01-13
 

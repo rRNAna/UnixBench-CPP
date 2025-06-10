@@ -1,10 +1,10 @@
 ================================================================================
-UnixBench 6.0.0 Usage Guide
+UnixBench 6.1.0 Usage Guide
 ================================================================================
 
 Overview:
 ---------
-This version of UnixBench (v6.0.0) is fully modernized:
+This version of UnixBench (v6.1.0) is fully modernized:
 - Benchmark programs rewritten in modern C++ (C++17 or newer).
 - Test harness rewritten in Python 3 (run_unixbench.py) replacing the old Perl 'Run' script.
 - Improved benchmark control, output formatting, and dynamic multi-threading support.
