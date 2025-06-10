@@ -12,7 +12,7 @@ This version of UnixBench (v6.1.0) is fully modernized:
 Running the Tests:
 ------------------
 1. Compile the benchmark programs:
-   $ make
+   $ CC=clang CXX=clang++ cmake ./CmakeLists.txt && make
 
 2. Run all standard system benchmarks:
    $ python3 Run.py
