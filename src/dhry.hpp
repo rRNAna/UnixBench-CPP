@@ -22,6 +22,8 @@
 #define TIMES
 #endif
 
+#define Null nullptr
+
 #ifdef TIMES
 #include <sys/types.h>
 #include <sys/times.h>
