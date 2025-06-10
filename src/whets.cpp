@@ -2,8 +2,8 @@
  * @file        whets.cpp
  * @brief       C++ refactored UnixBench arith test module
  * @author      rRNA
- * @version     2.0.0
- * @date        04-28-2025
+ * @version     2.1.0
+ * @date        06-10-2025
  *
  * @details
  * This file is a C++ rewrite of whets.c from the original UnixBench project.
