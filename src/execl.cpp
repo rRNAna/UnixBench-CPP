@@ -2,8 +2,8 @@
  * @file        execl.cpp
  * @brief       C++ refactored UnixBench arith test module
  * @author      rRNA
- * @version     3.5.0
- * @date        04-29-2025
+ * @version     3.6.0
+ * @date        06-10-2025
  *
  * @details
  * This file is a C++ rewrite of execl.c from the original UnixBench project.
@@ -13,17 +13,15 @@
  *
  */
 
-#include <cstdio>
+##include <cstdio>
 #include <cstdlib>
 #include <unistd.h>
 #include <sys/types.h>
 #include <ctime>
 
-char bss[8 * 1024];
+#include "big.hpp"  // Import declarations only
 
-#define main dummy
-#include "big.cpp"
-#undef main
+char bss[8 * 1024];
 
 int main(int argc, char* argv[]) {
     unsigned long iter = 0;

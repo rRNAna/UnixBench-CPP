@@ -2,8 +2,8 @@
  * @file        dhry.cpp
  * @brief       C++ refactored UnixBench arith test module
  * @author      rRNA
- * @version     3.5.0
- * @date        04-28-2025
+ * @version     3.6.0
+ * @date        06-10-2025
  *
  * @details
  * This file is a C++ rewrite of dhry_1.c and dhry_2.c from the original UnixBench project.
@@ -17,7 +17,7 @@
 #include <cstring>
 #include <string>
 #include <array>
-#include "dhry.h"
+#include "dhry.hpp"
 #include "timeit.cpp"
 
 using namespace std;

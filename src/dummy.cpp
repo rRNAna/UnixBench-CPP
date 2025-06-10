@@ -13,7 +13,7 @@
  *
  */
 #include <cstring>   // for strcmp, if needed
-#include "dhry.h"
+#include "dhry.hpp"
 
 #ifndef REG
 #define REG // REG becomes defined as empty (i.e. no register variables)

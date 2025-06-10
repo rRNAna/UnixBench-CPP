@@ -12,10 +12,8 @@
  * This module is used to manage stress test coordination tasks, such as multi-user
  * simulation, multi-process execution, logging, etc.
  */
-
+#include "big.hpp"
 #include <iostream>
-#include <vector>
-#include <string>
 #include <cstdlib>
 #include <csignal>
 #include <unistd.h>
@@ -26,25 +24,16 @@
 #include <fstream>
 #include <sstream>
 
-#define DEF_RATE 5.0
-#define GRANULE  5
-#define CHUNK    60
-#define MAXCHILD 12
-#define MAXWORK  10
-
-void wrapUp(const std::string& reason);
-void onAlarm(int);
-void pipeError(int);
-void grunt();
-void getWork();
-void fatal(const std::string& message);
-
+// Global variable definitions
 float threshold;
 float estimatedRate = DEF_RATE;
-int numUsers = 0;   // number of concurrent users to be simulated by this process.
-int firstUser = 0;  // ordinal identification of first user for this process.
-int exitStatus = 0; // returned to parent
-int sigpipe = 0;    // pipe write error flag
+int numUsers = 0;
+int firstUser = 0;
+int exitStatus = 0;
+int sigpipe = 0;
+std::vector<Work> works;
+std::vector<Child> children;
+
 
 struct Work {
     std::string cmd;
