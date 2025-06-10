@@ -6,7 +6,7 @@ This release includes a full modernization of the original UnixBench framework.
 Major changes in v6.1.0:
 * Build with CMake.
 * Modified the test script, added thread CPU affinity binding to the CPU load
-  benchmark, and improved the overall performance by 7.3% (tested on AMD EPYC
+  benchmark, and improved the overall performance by 7.22% (tested on AMD EPYC
   9175F).
 
 How to use:
