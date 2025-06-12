@@ -12,6 +12,8 @@ import concurrent.futures
 from pathlib import Path
 import shutil
 import psutil
+import sys
+import reshaper
 
 # Drawing Library
 # import matplotlib.pyplot as plt
@@ -19,7 +21,7 @@ import psutil
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
-VERSION     = "6.1.0"
+VERSION     = "6.1.1"
 LANGUAGE    = "en_US.utf8"
 LONG_ITER   = 10
 SHORT_ITER  = 3
@@ -112,15 +114,19 @@ class Benchmark:
                 cmd = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
             else:
                 cmd = self.command[:]
-
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                cwd=cwd,
-                start_new_session=True
-            )
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    cwd=cwd,
+                    start_new_session=True
+                )
+            except OSError as e:
+                print(f"[ERROR] Failed to launch subprocess: {e}", file=sys.stderr)
+                print(f"[DEBUG] Command attempted: {args}", file=sys.stderr)
+                raise
 
             if bind_affinity:
                 try:
@@ -328,7 +334,16 @@ class BenchmarkSuite:
 #     plt.tight_layout()
 #     plt.savefig(output_path)
 #     plt.close()
-
+class OS_Tuning:
+    def raise_fd_limit(min_limit=4096):
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if soft < min_limit:
+            try:
+                new_soft = min(min_limit, hard)
+                resource.setrlimit(resource.RLIMIT_NOFILE, (new_soft, hard))
+                print(f"[INFO] Raised file descriptor limit to {new_soft}")
+            except Exception as e:
+                print(f"[WARN] Unable to raise file descriptor limit: {e}", file=sys.stderr)
 # ------------------------------------------------------------------------------
 # Main program
 # ------------------------------------------------------------------------------
@@ -336,6 +351,9 @@ def main():
     # Print UnixBench Logo
     with open("pgms/unixbench.logo") as f:
         print(f.read())
+
+    # Set the system file descriptor
+    OS_Tuning.raise_fd_limit(65536)
 
     # Parsing command line arguments
     parser = argparse.ArgumentParser(
