@@ -1,20 +1,11 @@
 #!/usr/bin/env python3
 # Standard library import for file paths,
 # system commands, regular expressions, time processing, etc.
-import os
-import time
-import math
-import argparse
-import subprocess
-import statistics
-import re
+import os, resource, time, math, argparse
+import subprocess, statistics, re
+import shutil, psutil, sys
 import concurrent.futures
 from pathlib import Path
-import shutil
-import psutil
-import sys
-import reshaper
-
 # Drawing Library
 # import matplotlib.pyplot as plt
 # import pandas as pd
@@ -338,7 +329,7 @@ class OS_Tuning:
     def __init__(self):
         self.cores = os.cpu_count()
 
-        self.REQUIRED_NOFILE = max(65536, 4096 + 8 * int(os.getenv("UB_CONCURRENCY", cself.ores)))  # Estimated by concurrency
+        self.REQUIRED_NOFILE = max(65536, 4096 + 8 * int(os.getenv("UB_CONCURRENCY", self.cores)))  # Estimated by concurrency
 
         self.TARGET_NOFILE   = min(1048576, self.REQUIRED_NOFILE)  # The upper limit is 1,048,576, which is sufficient and safe
 
