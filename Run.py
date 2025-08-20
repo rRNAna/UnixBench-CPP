@@ -21,7 +21,7 @@ import reshaper
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
-VERSION     = "6.1.1"
+VERSION     = "6.2.0"
 LANGUAGE    = "en_US.utf8"
 LONG_ITER   = 10
 SHORT_ITER  = 3
@@ -254,7 +254,6 @@ class BenchmarkSuite:
             "shell8":           6.0,
             "syscall":          15000.0
         }
-
     # Add a benchmark
     def add(self, name, msg, command):
         self.benchmarks[name] = Benchmark(name, msg, command, self.parser, verbose=self.verbose)
@@ -335,6 +334,33 @@ class BenchmarkSuite:
 #     plt.savefig(output_path)
 #     plt.close()
 class OS_Tuning:
+
+    def __init__(self):
+        self.cores = os.cpu_count()
+
+        self.REQUIRED_NOFILE = max(65536, 4096 + 8 * int(os.getenv("UB_CONCURRENCY", cself.ores)))  # Estimated by concurrency
+
+        self.TARGET_NOFILE   = min(1048576, self.REQUIRED_NOFILE)  # The upper limit is 1,048,576, which is sufficient and safe
+
+    def set_nofile_or_explain(target):
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if soft >= target:
+            return soft, hard, soft  # Satisfied
+        # Try raising the soft cap to min(target, hard)
+        new_soft = min(target, hard)
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (new_soft, hard))
+            return soft, hard, new_soft
+        except Exception as e:
+            # Provide clear guidance
+            print(f"[FATAL] open files (nofile) Insufficient soft cap：now soft={soft}, hard={hard}, needs >= {target}")
+            print("Repair method (execute and run again in the same shell):")
+            print(f"  ulimit -n {target}")
+            print("If the hard is not enough, the administrator needs to increase it:")
+            print(f"  sudo bash -c 'echo \"* soft nofile {target}\\n* hard nofile {max(target, hard)}\" > /etc/security/limits.d/90-nofile.conf'")
+            print("  Relogin or add to systemd service: LimitNOFILE=" + str(target))
+            sys.exit(1)
+
     def raise_fd_limit(min_limit=4096):
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         if soft < min_limit:
@@ -353,7 +379,10 @@ def main():
         print(f.read())
 
     # Set the system file descriptor
+    ost = OS_Tuning()
+    TARGET_NOFILE = ost.TARGET_NOFILE
     OS_Tuning.raise_fd_limit(65536)
+    old_soft, old_hard, new_soft = OS_Tuning.set_nofile_or_explain(TARGET_NOFILE)
 
     # Parsing command line arguments
     parser = argparse.ArgumentParser(
@@ -507,6 +536,9 @@ def main():
             #     f.write(f"<h3>Performance Chart</h3><img src='results.png' width='800'>")
             f.write("</body></html>")
         print(f"\nHTML 报告已生成: {html_path}")
+
+    # Restore to the soft cap when entering the script
+    resource.setrlimit(resource.RLIMIT_NOFILE, (old_soft, old_hard))
 
 
 if __name__ == "__main__":
