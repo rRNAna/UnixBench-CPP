@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
     int count = 10, calibrate = 1;
     long xtra = 1;
     long x100 = 100;
-    int duration = 100;
+    int duration = 10;
     bool getinput = true;
     vector<string> general(10, " ");
     string compiler = " ";
