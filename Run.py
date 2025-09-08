@@ -195,16 +195,26 @@ class Benchmark:
                 cmd = self.command[:]
 
             try:
+                needs_tty = (self.name == "whetstone-double")
+                stdin_arg = None if needs_tty else subprocess.DEVNULL
                 proc = subprocess.Popen(
                     cmd,
-                    stdout=subprocess.PIPE,  # 只开一条管道
-                    stderr=subprocess.STDOUT,  # 合并 stderr，避免回压
-                    stdin=subprocess.DEVNULL,  # 明确不接收输入，防“等待输入”
-                    text=True,
-                    bufsize=1,  # 行缓冲（配合 text=True）
-                    cwd=cwd,
-                    start_new_session=True  # 新进程组，便于整体清理
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    stdin=stdin_arg,
+                    text=True, bufsize=1,
+                    cwd=cwd, start_new_session=True
                 )
+                # proc = subprocess.Popen(
+                #     cmd,
+                #     stdout=subprocess.PIPE,  # 只开一条管道
+                #     stderr=subprocess.STDOUT,  # 合并 stderr，避免回压
+                #     stdin=subprocess.DEVNULL,  # 明确不接收输入，防“等待输入”
+                #     text=True,
+                #     bufsize=1,  # 行缓冲（配合 text=True）
+                #     cwd=cwd,
+                #     start_new_session=True  # 新进程组，便于整体清理
+                # )
             except OSError as e:
                 print(f"[ERROR] Failed to launch subprocess: {e}", file=sys.stderr)
                 print(f"[DEBUG] Command attempted: {cmd}", file=sys.stderr)
