@@ -175,7 +175,7 @@ void whetstones(long xtra, long x100, int calibrate) {
     e1[3] = -1.0;
     timea = dtime();
     for (ix = 0; ix < xtra; ix++) {
-        cout << "Iteration: " << ix << " of whetstones loop" << endl;
+        // cout << "Iteration: " << ix << " of whetstones loop" << endl;
         for (i = 0; i < n1 * n1mult; i++) {
             if (i % 100 == 0) {  // Reduce the frequency of debug output
                 cout << "At loop n1, iteration: " << i << ", e1[0]: " << e1[0] << endl;
@@ -195,7 +195,7 @@ void whetstones(long xtra, long x100, int calibrate) {
     // Section 2, Array as parameter
     timea = dtime();
     for (ix = 0; ix < xtra; ix++) {
-        cout << "Calling function pa with parameters..." << endl;
+        // cout << "Calling function pa with parameters..." << endl;
         for (i = 0; i < n2; i++) {
             pa(e1, t, t2);
         }
