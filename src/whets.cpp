@@ -54,12 +54,9 @@ static vector<SPDP> results(9);
 
 // Define a function that returns the number of seconds since a fixed point, of type double
 double dtime() {
-    auto now = std::chrono::high_resolution_clock::now();
-    static thread_local auto start = now;  // 每个线程/进程都有独立起点
-    return std::chrono::duration<double>(now - start).count();
-    // using clock = std::chrono::steady_clock;
-    // static const auto start = clock::now();
-    // return std::chrono::duration<double>(clock::now() - start).count();
+    using clock = std::chrono::steady_clock;
+    static const auto start = clock::now();
+    return std::chrono::duration<double>(clock::now() - start).count();
 }
 
 // main
@@ -192,7 +189,6 @@ void whetstones(long xtra, long x100, int calibrate) {
     // Section 2, Array as parameter
     timea = dtime();
     for (ix = 0; ix < xtra; ix++) {
-        // cout << "Calling function pa with parameters..." << endl;
         for (i = 0; i < n2; i++) {
             pa(e1, t, t2);
         }
@@ -200,7 +196,6 @@ void whetstones(long xtra, long x100, int calibrate) {
     }
     t = t0;
     timeb = dtime() - timea;
-    // cout << "Returned from pa function." << endl;
     pout("N2 floating point", (float)(n2 * 96) * (float)(xtra),
          1, e1[3], timeb, calibrate, 2);
 

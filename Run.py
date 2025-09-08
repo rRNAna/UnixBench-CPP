@@ -203,6 +203,7 @@ class Benchmark:
                     stderr=subprocess.STDOUT,
                     stdin=stdin_arg,
                     text=True, bufsize=1,
+                    encoding="utf-8", errors="replace",
                     cwd=cwd, start_new_session=True
                 )
                 # proc = subprocess.Popen(
@@ -596,9 +597,22 @@ def main():
 
     @suite.register_parser("whetstone-double")
     def parse_whets(output):
-        m = re.search(r"^MWIPS\s+([0-9.]+)", output, re.MULTILINE)
+        # 1) 先抓 MWIPS 行（行首有 "MWIPS"）
+        m = re.search(r"(?m)^MWIPS\s+([0-9]+(?:[.,][0-9]+)?)", output)
         if m:
-            return {"COUNT0": float(m.group(1))}
+            val = m.group(1).replace(',', '.')
+            return {"COUNT0": float(val)}
+
+        # 2) 兼容 COUNT 行：COUNT|<mwips>|...|mwips
+        m2 = re.search(r"(?mi)^COUNT\|([0-9]+(?:[.,][0-9]+)?)\|.*\|mwips", output)
+        if m2:
+            val = m2.group(1).replace(',', '.')
+            return {"COUNT0": float(val)}
+
+        # 3) （可选）在 verbose 下把最后几行打出来，便于排查
+        if args.verbose:   # 注意这里用 args.verbose，而不是 self.verbose
+            tail = "\n".join(output.strip().splitlines()[-20:])
+            print(f"[DEBUG] whetstone-double: no MWIPS/COUNT match. Tail:\n{tail}")
         return {}
 
     # List all benchmark logic
