@@ -12,7 +12,7 @@ from pathlib import Path
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
-VERSION     = "6.2.0"
+VERSION     = "6.3.0"
 LANGUAGE    = "en_US.utf8"
 LONG_ITER   = 10
 SHORT_ITER  = 3
@@ -87,36 +87,127 @@ class Benchmark:
         self.samples = []       # Store the results of each run
         self.verbose = verbose  # Test output verbosity
 
+    # def run_once(self, concurrency=1, logdir=None, report_mode='html'):
+    #     processes = []
+    #     outputs = []
+    #     start = time.time()
+    #     cwd = str(TMPDIR / "testdir") if self.name in {"shell1", "shell8"} else None
+    #
+    #     # 不绑核的 benchmark
+    #     no_affinity_list = {"dhry_reg", "fstime-w", "fstime-r", "fstime"}
+    #     bind_affinity = self.name not in no_affinity_list
+    #
+    #     for thread_id in range(concurrency):
+    #         # 对 fstime/fsbuffer/fsdisk 系列使用 thread-specific TMPDIR
+    #         if self.name.startswith("fstime") or self.name.startswith("fsbuffer") or self.name.startswith("fsdisk"):
+    #             thread_tmp_dir = TMPDIR / f"testdir/thread-{thread_id}"
+    #             thread_tmp_dir.mkdir(parents=True, exist_ok=True)
+    #             cmd = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
+    #         else:
+    #             cmd = self.command[:]
+    #         try:
+    #             proc = subprocess.Popen(
+    #                 cmd,
+    #                 stdout=subprocess.PIPE,
+    #                 stderr=subprocess.PIPE,
+    #                 text=True,
+    #                 cwd=cwd,
+    #                 start_new_session=True
+    #             )
+    #         except OSError as e:
+    #             print(f"[ERROR] Failed to launch subprocess: {e}", file=sys.stderr)
+    #             print(f"[DEBUG] Command attempted: {args}", file=sys.stderr)
+    #             raise
+    #
+    #         if bind_affinity:
+    #             try:
+    #                 p = psutil.Process(proc.pid)
+    #                 cpu_id = thread_id % os.cpu_count()
+    #                 p.cpu_affinity([cpu_id])
+    #             except Exception as e:
+    #                 print(f"[WARN] Failed to set affinity for {self.name}, pid={proc.pid}: {e}")
+    #
+    #         processes.append((proc, time.time()))
+    #
+    #     thread_times = []
+    #     with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
+    #         futures = [executor.submit(proc.communicate) for proc, _ in processes]
+    #         for i, future in enumerate(futures):
+    #             stdout, stderr = future.result()
+    #             end_time = time.time()
+    #             outputs.append(stdout + stderr)
+    #             thread_times.append(end_time - processes[i][1])
+    #
+    #     avg_elapsed = sum(thread_times) / len(thread_times)
+    #     combined_output = "\n".join(outputs)
+    #
+    #     if self.verbose:
+    #         print(f"\n-------------------------------------{self.name}-----------------")
+    #         print(combined_output.strip())
+    #         print(f"\n-------------------------------------END-----------------")
+    #
+    #     if logdir and report_mode in ("all", "log"):
+    #         (logdir / f"{self.name}.log").write_text(combined_output)
+    #     if logdir and report_mode in ("all",):
+    #         (logdir / f"{self.name}.txt").write_text(f"CMD: {' '.join(self.command)}\n\n{combined_output}")
+    #
+    #     # 解析每个子进程输出
+    #     for output in outputs:
+    #         result = self.parser.parse(self.name, output)
+    #         if result and "COUNT0" in result:
+    #             result["avg_elapsed"] = avg_elapsed
+    #             if self.name in {
+    #                 "dhry_reg", "whetstone-double", "pipe", "context1", "syscall", "sysexec"
+    #             }:
+    #                 result["COUNT1"] = 10
+    #             elif self.name in {
+    #                 "execl", "spawn", "fstime", "fstime-w", "fstime-r",
+    #                 "fsbuffer", "fsbuffer-w", "fsbuffer-r",
+    #                 "fsdisk", "fsdisk-w", "fsdisk-r"
+    #             }:
+    #                 result["COUNT1"] = 20
+    #             elif self.name in {"shell1", "shell8"}:
+    #                 result["COUNT1"] = 60
+    #             elif self.name.startswith("2d-") or self.name in {"ubgears"}:
+    #                 result["COUNT1"] = 3 if self.name.startswith("2d-") else 20
+    #             elif self.name in {"grep"}:
+    #                 result["COUNT1"] = 30
+    #             else:
+    #                 result["COUNT1"] = 10  # fallback
+    #             self.samples.append(result)
+
     def run_once(self, concurrency=1, logdir=None, report_mode='html'):
         processes = []
         outputs = []
         start = time.time()
         cwd = str(TMPDIR / "testdir") if self.name in {"shell1", "shell8"} else None
 
-        # 不绑核的 benchmark
         no_affinity_list = {"dhry_reg", "fstime-w", "fstime-r", "fstime"}
         bind_affinity = self.name not in no_affinity_list
 
+        # 启动子进程
         for thread_id in range(concurrency):
-            # 对 fstime/fsbuffer/fsdisk 系列使用 thread-specific TMPDIR
-            if self.name.startswith("fstime") or self.name.startswith("fsbuffer") or self.name.startswith("fsdisk"):
+            if self.name.startswith(("fstime", "fsbuffer", "fsdisk")):
                 thread_tmp_dir = TMPDIR / f"testdir/thread-{thread_id}"
                 thread_tmp_dir.mkdir(parents=True, exist_ok=True)
                 cmd = [arg if arg != str(TMPDIR) else str(thread_tmp_dir) for arg in self.command]
             else:
                 cmd = self.command[:]
+
             try:
                 proc = subprocess.Popen(
                     cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE,  # 只开一条管道
+                    stderr=subprocess.STDOUT,  # 合并 stderr，避免回压
+                    stdin=subprocess.DEVNULL,  # 明确不接收输入，防“等待输入”
                     text=True,
+                    bufsize=1,  # 行缓冲（配合 text=True）
                     cwd=cwd,
-                    start_new_session=True
+                    start_new_session=True  # 新进程组，便于整体清理
                 )
             except OSError as e:
                 print(f"[ERROR] Failed to launch subprocess: {e}", file=sys.stderr)
-                print(f"[DEBUG] Command attempted: {args}", file=sys.stderr)
+                print(f"[DEBUG] Command attempted: {cmd}", file=sys.stderr)
                 raise
 
             if bind_affinity:
@@ -129,16 +220,44 @@ class Benchmark:
 
             processes.append((proc, time.time()))
 
-        thread_times = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
-            futures = [executor.submit(proc.communicate) for proc, _ in processes]
-            for i, future in enumerate(futures):
-                stdout, stderr = future.result()
-                end_time = time.time()
-                outputs.append(stdout + stderr)
-                thread_times.append(end_time - processes[i][1])
+        # 实时消费输出（逐行），并给每个子进程设置超时
+        thread_times = [None] * len(processes)
+        per_proc_timeout = 60 * 60  # 每个子进程 1 小时上限，可按需调
 
-        avg_elapsed = sum(thread_times) / len(thread_times)
+        def _drain(proc, idx, sink_lines):
+            deadline = time.time() + per_proc_timeout
+            try:
+                for line in proc.stdout:
+                    sink_lines.append(line)
+                    # 可在此解析/打印进度
+                    if time.time() > deadline:
+                        raise subprocess.TimeoutExpired(proc.args, per_proc_timeout)
+                ret = proc.wait(timeout=max(0, deadline - time.time()))
+                end_time = time.time()
+                thread_times[idx] = end_time - processes[idx][1]
+                return ret
+            except subprocess.TimeoutExpired:
+                # 超时则杀掉整个进程组
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                    time.sleep(2)
+                    if proc.poll() is None:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                finally:
+                    thread_times[idx] = time.time() - processes[idx][1]
+                return None
+
+        # 为每个子进程单独开一个读取线程（数量=并发），边读边防回压
+        sink_list = [[] for _ in processes]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as ex:
+            futs = [ex.submit(_drain, proc, i, sink_list[i]) for i, (proc, _) in enumerate(processes)]
+            for _ in concurrent.futures.as_completed(futs):
+                pass
+
+        # 汇总输出
+        outputs = ["".join(sink) for sink in sink_list]
+        avg_elapsed = sum(t for t in thread_times if t is not None) / max(1, len([t for t in thread_times if
+                                                                                  t is not None]))
         combined_output = "\n".join(outputs)
 
         if self.verbose:
@@ -156,15 +275,11 @@ class Benchmark:
             result = self.parser.parse(self.name, output)
             if result and "COUNT0" in result:
                 result["avg_elapsed"] = avg_elapsed
-                if self.name in {
-                    "dhry_reg", "whetstone-double", "pipe", "context1", "syscall", "sysexec"
-                }:
+                if self.name in {"dhry_reg", "whetstone-double", "pipe", "context1", "syscall", "sysexec"}:
                     result["COUNT1"] = 10
-                elif self.name in {
-                    "execl", "spawn", "fstime", "fstime-w", "fstime-r",
-                    "fsbuffer", "fsbuffer-w", "fsbuffer-r",
-                    "fsdisk", "fsdisk-w", "fsdisk-r"
-                }:
+                elif self.name in {"execl", "spawn", "fstime", "fstime-w", "fstime-r",
+                                   "fsbuffer", "fsbuffer-w", "fsbuffer-r",
+                                   "fsdisk", "fsdisk-w", "fsdisk-r"}:
                     result["COUNT1"] = 20
                 elif self.name in {"shell1", "shell8"}:
                     result["COUNT1"] = 60
@@ -173,9 +288,9 @@ class Benchmark:
                 elif self.name in {"grep"}:
                     result["COUNT1"] = 30
                 else:
-                    result["COUNT1"] = 10  # fallback
+                    result["COUNT1"] = 10
                 self.samples.append(result)
-
+                
     # Repeat the Benchmark multiple times
     def run(self, times, concurrency, logdir, report_mode):
         print(f"[{self.name:<10}] ", end="", flush=True)
