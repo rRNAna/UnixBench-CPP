@@ -2,15 +2,12 @@
  * @file        whets.cpp
  * @brief       C++ refactored UnixBench arith test module
  * @author      rRNA
- * @version     2.1.0
- * @date        06-10-2025
+ * @version     2.2.0
+ * @date        09-08-2025
  *
  * @details
  * This file is a C++ rewrite of whets.c from the original UnixBench project.
  * Original project address: https://github.com/kdlucas/byte-unixbench/tree/v5.1.3
- *
- *
- *
  */
 
 #include <cmath>      // for sin, cos, atan, exp, log, sqrt
@@ -142,8 +139,6 @@ int main(int argc, char *argv[]) {
 }
 
 void whetstones(long xtra, long x100, int calibrate) {
-    // cout << "Entering whetstones function with xtra: " << xtra << ", x100: " << x100 << ", calibrate: " << calibrate << endl;
-
     long n1, n2, n3, n4, n5, n6, n7, n8, i, ix, n1mult;
     SPDP x, y, z;
     long j, k, l;

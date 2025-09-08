@@ -1,12 +1,14 @@
-Version 6.3.0 -- 2025-09-
+Version 6.3.0 -- 2025-09-08
 
 ================================================================================
 This release includes a full modernization of the original UnixBench framework.
 
 Major changes in v6.3.0:
-* Fixed the issue that the multithreaded test on high-core processors could
-  not be tested due to system file descriptor limitations.
+* Fixed the issue where the whetstone-double program test took too long.
 *
+How to use:
+1. Build the test binaries using `cmake . && cmake --build .`.
+2. Run `python3 Run.py <benchamres_name> -c <cpus> -i <number_of_tests> ` to begin benchmarking.
 
 Maintainer: [rRNA]
 
