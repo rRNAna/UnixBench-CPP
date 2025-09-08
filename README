@@ -1,3 +1,16 @@
+Version 6.3.0 -- 2025-09-
+
+================================================================================
+This release includes a full modernization of the original UnixBench framework.
+
+Major changes in v6.3.0:
+* Fixed the issue that the multithreaded test on high-core processors could
+  not be tested due to system file descriptor limitations.
+*
+
+Maintainer: [rRNA]
+
+====================History=====================================
 Version 6.2.0 -- 2025-08-20
 
 ================================================================================
@@ -9,8 +22,6 @@ Major changes in v6.2.0:
 *
 
 Maintainer: [rRNA]
-
-====================History=====================================
 
 Version 6.1.1 -- 2025-06-12
 

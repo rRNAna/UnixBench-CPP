@@ -54,17 +54,18 @@ static vector<SPDP> results(9);
 
 // Define a function that returns the number of seconds since a fixed point, of type double
 double dtime() {
-    // static auto start = chrono::high_resolution_clock::now();
-    // auto now = chrono::high_resolution_clock::now();
-    // return chrono::duration<double>(now - start).count();
-
     auto now = std::chrono::high_resolution_clock::now();
     static thread_local auto start = now;  // 每个线程/进程都有独立起点
     return std::chrono::duration<double>(now - start).count();
+    // using clock = std::chrono::steady_clock;
+    // static const auto start = clock::now();
+    // return std::chrono::duration<double>(clock::now() - start).count();
 }
 
 // main
 int main(int argc, char *argv[]) {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
     cout << "Starting the Whetstone Double-Precision Benchmark..." << endl;
 
     int count = 10, calibrate = 1;
@@ -144,7 +145,7 @@ int main(int argc, char *argv[]) {
 }
 
 void whetstones(long xtra, long x100, int calibrate) {
-    cout << "Entering whetstones function with xtra: " << xtra << ", x100: " << x100 << ", calibrate: " << calibrate << endl;
+    // cout << "Entering whetstones function with xtra: " << xtra << ", x100: " << x100 << ", calibrate: " << calibrate << endl;
 
     long n1, n2, n3, n4, n5, n6, n7, n8, i, ix, n1mult;
     SPDP x, y, z;
@@ -175,11 +176,7 @@ void whetstones(long xtra, long x100, int calibrate) {
     e1[3] = -1.0;
     timea = dtime();
     for (ix = 0; ix < xtra; ix++) {
-        // cout << "Iteration: " << ix << " of whetstones loop" << endl;
         for (i = 0; i < n1 * n1mult; i++) {
-            if (i % 100 == 0) {  // Reduce the frequency of debug output
-                cout << "At loop n1, iteration: " << i << ", e1[0]: " << e1[0] << endl;
-            }
             e1[0] = (e1[0] + e1[1] + e1[2] - e1[3]) * t;
             e1[1] = (e1[0] + e1[1] - e1[2] + e1[3]) * t;
             e1[2] = (e1[0] - e1[1] + e1[2] + e1[3]) * t;
@@ -203,7 +200,7 @@ void whetstones(long xtra, long x100, int calibrate) {
     }
     t = t0;
     timeb = dtime() - timea;
-    cout << "Returned from pa function." << endl;
+    // cout << "Returned from pa function." << endl;
     pout("N2 floating point", (float)(n2 * 96) * (float)(xtra),
          1, e1[3], timeb, calibrate, 2);
 
